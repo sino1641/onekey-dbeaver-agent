@@ -26,19 +26,26 @@ def check_maven_available():
     Returns:
         Maven 命令字符串，如果不可用则返回 None
     """
-    maven_commands = ['mvn', 'mvn.cmd', 'mvn.bat']
+    system = platform.system()
+
+    # 根据操作系统选择要测试的命令
+    if system == 'Windows':
+        maven_commands = ['mvn.cmd', 'mvn.bat', 'mvn']
+    else:  # macOS 和 Linux
+        maven_commands = ['mvn']
 
     for cmd in maven_commands:
         try:
-            # 明确传递环境变量
-            env = os.environ.copy()
+            # Unix 系统上不使用 shell=True
+            use_shell = (system == 'Windows')
+
             result = subprocess.run(
                 [cmd, '-version'],
                 capture_output=True,
                 text=True,
-                shell=True,
+                shell=use_shell,
                 timeout=5,
-                env=env  # 显式传递环境变量
+                env=os.environ.copy()
             )
             if result.returncode == 0:
                 print(f"  检测到 Maven: {cmd}")
@@ -47,7 +54,14 @@ def check_maven_available():
                 if first_line:
                     print(f"  版本: {first_line}")
                 return cmd
-        except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
+        except FileNotFoundError:
+            # 命令不存在，继续尝试下一个
+            continue
+        except subprocess.TimeoutExpired:
+            print(f"  警告: {cmd} 命令超时")
+            continue
+        except Exception as e:
+            # 其他错误，继续尝试
             continue
 
     return None
@@ -305,13 +319,31 @@ def compile_project(script_dir):
 
     if not maven_cmd:
         print("✗ 未找到 Maven 命令")
+        system = platform.system()
         print("\n请确保 Maven 已正确安装并配置：")
         print("  1. 下载 Maven: https://maven.apache.org/download.cgi")
-        print("  2. 解压到某个目录，例如: C:\\Program Files\\Apache\\maven")
-        print("  3. 添加环境变量:")
-        print("     - MAVEN_HOME = C:\\Program Files\\Apache\\maven")
-        print("     - 在 PATH 中添加: %MAVEN_HOME%\\bin")
-        print("  4. 打开新的命令行窗口，执行: mvn -version")
+
+        if system == 'Darwin':  # macOS
+            print("  2. macOS 推荐使用 Homebrew 安装:")
+            print("     brew install maven")
+            print("  3. 或手动安装后添加到 PATH:")
+            print("     export PATH=/path/to/maven/bin:$PATH")
+            print("  4. 验证安装: mvn -version")
+        elif system == 'Linux':
+            print("  2. Linux 使用包管理器安装:")
+            print("     Ubuntu/Debian: sudo apt-get install maven")
+            print("     CentOS/RHEL: sudo yum install maven")
+            print("     Fedora: sudo dnf install maven")
+            print("  3. 或手动安装后添加到 PATH:")
+            print("     export PATH=/path/to/maven/bin:$PATH")
+            print("  4. 验证安装: mvn -version")
+        else:  # Windows
+            print("  2. 解压到某个目录，例如: C:\\Program Files\\Apache\\maven")
+            print("  3. 添加环境变量:")
+            print("     - MAVEN_HOME = C:\\Program Files\\Apache\\maven")
+            print("     - 在 PATH 中添加: %MAVEN_HOME%\\bin")
+            print("  4. 打开新的命令行窗口，执行: mvn -version")
+
         print("  5. 重新运行此脚本")
         raise RuntimeError("未找到 Maven 命令")
 
@@ -319,8 +351,8 @@ def compile_project(script_dir):
 
     # 执行 mvn clean package
     try:
-        # 明确传递环境变量
-        env = os.environ.copy()
+        system = platform.system()
+        use_shell = (system == 'Windows')
 
         result = subprocess.run(
             [maven_cmd, 'clean', 'package', '-DskipTests'],
@@ -328,8 +360,8 @@ def compile_project(script_dir):
             capture_output=True,
             text=True,
             encoding='utf-8',
-            shell=True,
-            env=env  # 显式传递环境变量
+            shell=use_shell,
+            env=os.environ.copy()
         )
 
         if result.returncode == 0:
