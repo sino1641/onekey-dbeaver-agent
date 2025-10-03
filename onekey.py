@@ -484,6 +484,33 @@ def update_dbeaver_ini(dbeaver_dir):
     with open(ini_file, 'r', encoding='utf-8') as f:
         lines = f.readlines()
 
+    # macOS: 删除 -vm 参数（强制使用系统 JDK）
+    if system == 'Darwin':
+        new_lines = []
+        skip_next = False
+        removed_vm = False
+
+        for i, line in enumerate(lines):
+            if skip_next:
+                # 跳过 -vm 后面的路径行
+                skip_next = False
+                print(f"  ✓ 删除: {line.strip()}")
+                removed_vm = True
+                continue
+
+            if line.strip() == '-vm':
+                # 找到 -vm 参数，标记跳过下一行
+                print(f"  ✓ 删除: -vm")
+                skip_next = True
+                removed_vm = True
+                continue
+
+            new_lines.append(line)
+
+        lines = new_lines
+        if removed_vm:
+            print(f"  提示: 已删除 -vm 配置，DBeaver 将使用系统 JDK")
+
     # 检查是否已存在配置
     javaagent_line = f'-javaagent:{javaagent_path}\n'
     debug_line = '-Dlm.debug.mode=true\n'
@@ -522,8 +549,8 @@ def update_dbeaver_ini(dbeaver_dir):
     else:
         print(f"  - 已存在: {debug_line.strip()}")
 
-    # 写回文件
-    if modified:
+    # 写回文件（macOS 删除 -vm 也算修改）
+    if modified or (system == 'Darwin' and removed_vm):
         with open(ini_file, 'w', encoding='utf-8') as f:
             f.writelines(lines)
         print(f"✓ dbeaver.ini 更新完成")
