@@ -19,6 +19,26 @@ import platform
 from pathlib import Path
 
 
+class ProgressTracker:
+    """进度跟踪器"""
+    def __init__(self, total_steps):
+        self.total_steps = total_steps
+        self.current_step = 0
+
+    def next_step(self, description):
+        """进入下一步"""
+        self.current_step += 1
+        print(f"\n[{self.current_step}/{self.total_steps}] {description}")
+
+    def reset(self):
+        """重置进度"""
+        self.current_step = 0
+
+
+# 全局进度跟踪器（将在 main 函数中初始化）
+progress = None
+
+
 def check_maven_available():
     """
     检查 Maven 是否可用
@@ -140,13 +160,13 @@ def find_dbeaver_dir(input_path):
 
 def read_version_from_eclipseproduct(dbeaver_dir):
     """
-    从 .eclipseproduct 文件中读取版本号
+    从 .eclipseproduct 文件中读取版本号和产品ID
 
     Args:
         dbeaver_dir: DBeaver 安装目录
 
     Returns:
-        版本号字符串，例如 "25.2.0"
+        元组 (版本号字符串, 产品ID字符串)，例如 ("25.2.0", "com.dbeaver.ultimate")
     """
     system = platform.system()
 
@@ -164,13 +184,16 @@ def read_version_from_eclipseproduct(dbeaver_dir):
         content = f.read()
 
     # 查找 version=25.2.0 这样的行
-    match = re.search(r'version\s*=\s*([0-9]+\.[0-9]+\.[0-9]+)', content)
-    if match:
-        return match.group(1)
-    else:
+    version_match = re.search(r'version\s*=\s*([0-9]+\.[0-9]+\.[0-9]+)', content)
+    if not version_match:
         raise ValueError(f".eclipseproduct 文件中未找到版本号")
 
+    # 查找 id=com.dbeaver.ultimate 这样的行
+    id_match = re.search(r'id\s*=\s*([^\s]+)', content)
+    if not id_match:
+        raise ValueError(f".eclipseproduct 文件中未找到产品ID")
 
+    return version_match.group(1), id_match.group(1)
 def find_and_copy_jars(dbeaver_dir, libs_dir):
     """
     从 plugins 目录中查找并复制所需的 jar 文件到 libs 目录
@@ -508,6 +531,166 @@ def update_dbeaver_ini(dbeaver_dir):
         print(f"✓ dbeaver.ini 无需更新")
 
 
+def rename_jre_directory(dbeaver_dir):
+    """
+    重命名 jre 目录为 jr，强制使用系统 JDK
+
+    Args:
+        dbeaver_dir: DBeaver 安装目录
+    """
+    print("\n" + "=" * 60)
+    print("处理 JRE 目录...")
+    print("=" * 60)
+
+    system = platform.system()
+
+    # 根据操作系统确定 jre 目录位置
+    if system == 'Darwin':  # macOS
+        jre_dir = dbeaver_dir / 'Contents' / 'Eclipse' / 'jre'
+        jr_dir = dbeaver_dir / 'Contents' / 'Eclipse' / 'jr'
+    else:  # Windows 和 Linux
+        jre_dir = dbeaver_dir / 'jre'
+        jr_dir = dbeaver_dir / 'jr'
+
+    # 检查 jre 目录是否存在
+    if jre_dir.exists():
+        try:
+            # 如果 jr 目录已存在，先删除或跳过
+            if jr_dir.exists():
+                print(f"  - jr 目录已存在，跳过重命名")
+                print(f"  提示: DBeaver 将使用系统 JDK")
+            else:
+                # 重命名 jre -> jr
+                jre_dir.rename(jr_dir)
+                print(f"  ✓ 已重命名: jre -> jr")
+                print(f"  提示: DBeaver 将使用系统 JDK 而不是内置 JRE")
+        except Exception as e:
+            print(f"  ✗ 重命名失败: {e}")
+            print(f"  提示: 将使用 DBeaver 内置的 JRE")
+    else:
+        print(f"  - jre 目录不存在")
+        if jr_dir.exists():
+            print(f"  提示: DBeaver 将使用系统 JDK")
+        else:
+            print(f"  提示: DBeaver 将自动选择 Java 运行时")
+
+
+def generate_license(dbeaver_dir, product_id, product_version):
+    """
+    生成 DBeaver 许可证并复制到剪贴板（在 plugins 目录中调用）
+
+    Args:
+        dbeaver_dir: DBeaver 安装目录
+        product_id: 产品ID，如 com.dbeaver.ultimate
+        product_version: 产品版本，如 25.2.0
+    """
+    print("\n" + "=" * 60)
+    print("生成许可证...")
+    print("=" * 60)
+
+    # 映射产品ID到许可证类型
+    license_type_map = {
+        'com.dbeaver.ultimate': 'ue',
+        'com.dbeaver.enterprise': 'ee',
+        'com.dbeaver.lite': 'le',
+    }
+
+    # 获取许可证类型
+    license_type = license_type_map.get(product_id)
+    if not license_type:
+        print(f"  ✗ 未知的产品ID: {product_id}")
+        print(f"  支持的产品: {', '.join(license_type_map.keys())}")
+        return
+
+    print(f"  产品ID: {product_id}")
+    print(f"  许可类型: {license_type}")
+    print(f"  产品版本: {product_version}")
+
+    # 确定 plugins 目录位置
+    system = platform.system()
+    if system == 'Darwin':  # macOS
+        plugins_dir = dbeaver_dir / 'Contents' / 'Eclipse' / 'plugins'
+    else:  # Windows 和 Linux
+        plugins_dir = dbeaver_dir / 'plugins'
+
+    # 检查 dbeaver-agent.jar 是否存在
+    agent_jar = plugins_dir / 'dbeaver-agent.jar'
+    if not agent_jar.exists():
+        print(f"  ✗ 未找到 agent jar: {agent_jar}")
+        print(f"  请先部署 agent")
+        return
+
+    # 提取主版本号（如 25.2.0 -> 25）
+    major_version = product_version.split('.')[0]
+
+    try:
+        # 在 plugins 目录中调用 License 生成许可证
+        # 使用通配符 "*" 引用所有 jar，避免 Windows 路径过长问题
+        result = subprocess.run(
+            ['java', '-cp', '*', 'com.dbeaver.agent.License',
+             '-t', license_type,
+             '-v', major_version],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(plugins_dir),  # 在 plugins 目录中执行
+        )
+
+        if result.returncode == 0:
+            # 解析输出，提取许可证
+            output_lines = result.stdout.strip().split('\n')
+            license_key = None
+
+            for i, line in enumerate(output_lines):
+                if 'LICENSE' in line and i + 1 < len(output_lines):
+                    # 下一行就是许可证
+                    license_key = output_lines[i + 1].strip()
+                    break
+
+            if license_key:
+                print(f"  ✓ 许可证生成成功！")
+                print(f"\n--- LICENSE ---")
+                print(license_key)
+                print(f"--- END LICENSE ---\n")
+
+                # 复制到剪贴板
+                try:
+                    if system == 'Darwin':  # macOS
+                        subprocess.run(['pbcopy'], input=license_key.encode(), check=True)
+                        print(f"  ✓ 已复制到剪贴板 (macOS)")
+                    elif system == 'Windows':
+                        subprocess.run(['clip'], input=license_key.encode(), check=True, shell=True)
+                        print(f"  ✓ 已复制到剪贴板 (Windows)")
+                    else:  # Linux
+                        # 尝试使用 xclip 或 xsel
+                        try:
+                            subprocess.run(['xclip', '-selection', 'clipboard'],
+                                         input=license_key.encode(), check=True)
+                            print(f"  ✓ 已复制到剪贴板 (xclip)")
+                        except FileNotFoundError:
+                            try:
+                                subprocess.run(['xsel', '--clipboard'],
+                                             input=license_key.encode(), check=True)
+                                print(f"  ✓ 已复制到剪贴板 (xsel)")
+                            except FileNotFoundError:
+                                print(f"  ⚠ 未找到剪贴板工具 (xclip/xsel)")
+                                print(f"  提示: 请手动复制上面的许可证")
+                except Exception as e:
+                    print(f"  ⚠ 复制到剪贴板失败: {e}")
+                    print(f"  提示: 请手动复制上面的许可证")
+            else:
+                print(f"  ✗ 未能解析许可证")
+                print(f"  输出: {result.stdout}")
+        else:
+            print(f"  ✗ 生成失败")
+            print(f"  错误: {result.stderr}")
+
+    except subprocess.TimeoutExpired:
+        print(f"  ✗ 生成许可证超时")
+    except Exception as e:
+        print(f"  ✗ 生成许可证失败: {e}")
+
+
 def start_dbeaver(dbeaver_dir):
     """
     启动 DBeaver
@@ -593,41 +776,54 @@ def main():
         sys.exit(1)
 
     try:
+        # 初始化进度跟踪器（总共10个步骤）
+        global progress
+        progress = ProgressTracker(10)
+
         # 步骤1: 确定 DBeaver 目录
-        print(f"\n[1/8] 正在处理: {dbeaver_path}")
+        progress.next_step(f"正在处理: {dbeaver_path}")
         dbeaver_dir = find_dbeaver_dir(dbeaver_path)
         print(f"✓ DBeaver 目录: {dbeaver_dir}")
 
-        # 步骤2: 读取版本号
-        print(f"\n[2/8] 读取版本信息...")
-        main_version = read_version_from_eclipseproduct(dbeaver_dir)
+        # 步骤2: 读取版本号和产品ID
+        progress.next_step("读取版本信息...")
+        main_version, product_id = read_version_from_eclipseproduct(dbeaver_dir)
         print(f"✓ 检测到版本: {main_version}")
+        print(f"✓ 产品ID: {product_id}")
 
         # 步骤3: 查找并复制依赖 jar 文件
-        print(f"\n[3/8] 从 plugins 目录查找依赖...")
+        progress.next_step("从 plugins 目录查找依赖...")
         jar_info_list = find_and_copy_jars(dbeaver_dir, libs_dir)
 
         if not jar_info_list:
             print("警告: 未找到任何依赖 jar 文件")
 
         # 步骤4: 更新 pom.xml
-        print(f"\n[4/8] 更新 pom.xml...")
+        progress.next_step("更新 pom.xml...")
         update_pom_xml(pom_file, main_version, jar_info_list)
 
         # 步骤5: 编译项目
-        print(f"\n[5/8] 编译项目...")
+        progress.next_step("编译项目...")
         compiled_jar = compile_project(script_dir)
 
         # 步骤6: 部署到 DBeaver
-        print(f"\n[6/8] 部署到 DBeaver...")
+        progress.next_step("部署到 DBeaver...")
         deploy_agent_to_dbeaver(compiled_jar, dbeaver_dir)
 
-        # 步骤7: 更新配置文件
-        print(f"\n[7/8] 更新配置文件...")
+        # 步骤7: 生成许可证（在 plugins 目录中调用，依赖已经在那里）
+        progress.next_step("生成许可证...")
+        generate_license(dbeaver_dir, product_id, main_version)
+
+        # 步骤8: 更新配置文件
+        progress.next_step("更新配置文件...")
         update_dbeaver_ini(dbeaver_dir)
 
-        # 步骤8: 启动 DBeaver
-        print(f"\n[8/8] 启动 DBeaver...")
+        # 步骤9: 重命名 JRE 目录
+        progress.next_step("处理 JRE 目录...")
+        rename_jre_directory(dbeaver_dir)
+
+        # 步骤10: 启动 DBeaver
+        progress.next_step("启动 DBeaver...")
         start_dbeaver(dbeaver_dir)
 
         print("\n" + "=" * 60)
