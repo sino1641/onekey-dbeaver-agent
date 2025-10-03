@@ -15,6 +15,7 @@ import sys
 import re
 import shutil
 import subprocess
+import platform
 from pathlib import Path
 
 
@@ -57,7 +58,7 @@ def find_dbeaver_dir(input_path):
     确定 DBeaver 的安装目录
 
     Args:
-        input_path: 用户输入的路径（可以是目录或 dbeaver.exe 文件）
+        input_path: 用户输入的路径（可以是目录或可执行文件）
 
     Returns:
         DBeaver 安装目录的 Path 对象
@@ -67,20 +68,58 @@ def find_dbeaver_dir(input_path):
     if not path.exists():
         raise FileNotFoundError(f"路径不存在: {path}")
 
-    # 如果是文件，取其父目录
-    if path.is_file():
-        if path.name.lower() == 'dbeaver.exe':
-            return path.parent
-        else:
-            raise ValueError(f"不是 dbeaver.exe 文件: {path}")
+    system = platform.system()
 
-    # 如果是目录，检查是否包含 dbeaver.exe
-    if path.is_dir():
-        dbeaver_exe = path / 'dbeaver.exe'
-        if dbeaver_exe.exists():
+    # macOS 特殊处理：.app 包
+    if system == 'Darwin':
+        # 如果是 .app 目录
+        if path.suffix == '.app' and path.is_dir():
             return path
-        else:
-            raise FileNotFoundError(f"目录中未找到 dbeaver.exe: {path}")
+        # 如果指向 .app 内部的文件
+        if '.app/' in str(path) or '.app\\' in str(path):
+            # 向上查找 .app 目录
+            current = path
+            while current.parent != current:
+                if current.suffix == '.app':
+                    return current
+                current = current.parent
+        # 检查是否在 Applications 目录下
+        if path.is_dir():
+            app_files = list(path.glob('DBeaver*.app'))
+            if app_files:
+                return app_files[0]
+        raise ValueError(f"未找到 DBeaver.app: {path}")
+
+    # Windows 和 Linux 处理
+    if path.is_file():
+        # Windows: dbeaver.exe
+        # Linux: dbeaver 或其他可执行文件
+        if system == 'Windows':
+            if path.name.lower() == 'dbeaver.exe':
+                return path.parent
+            else:
+                raise ValueError(f"不是 dbeaver.exe 文件: {path}")
+        else:  # Linux
+            if 'dbeaver' in path.name.lower():
+                return path.parent
+            else:
+                raise ValueError(f"不是 dbeaver 可执行文件: {path}")
+
+    # 如果是目录
+    if path.is_dir():
+        if system == 'Windows':
+            dbeaver_exe = path / 'dbeaver.exe'
+            if dbeaver_exe.exists():
+                return path
+            else:
+                raise FileNotFoundError(f"目录中未找到 dbeaver.exe: {path}")
+        else:  # Linux
+            # 查找可执行文件
+            dbeaver_bin = path / 'dbeaver'
+            if dbeaver_bin.exists():
+                return path
+            else:
+                raise FileNotFoundError(f"目录中未找到 dbeaver 可执行文件: {path}")
 
     raise ValueError(f"无效的路径: {path}")
 
@@ -95,7 +134,14 @@ def read_version_from_eclipseproduct(dbeaver_dir):
     Returns:
         版本号字符串，例如 "25.2.0"
     """
-    eclipseproduct_file = dbeaver_dir / '.eclipseproduct'
+    system = platform.system()
+
+    # 根据操作系统确定 .eclipseproduct 文件位置
+    if system == 'Darwin':  # macOS
+        # DBeaver.app/Contents/Eclipse/.eclipseproduct
+        eclipseproduct_file = dbeaver_dir / 'Contents' / 'Eclipse' / '.eclipseproduct'
+    else:  # Windows 和 Linux
+        eclipseproduct_file = dbeaver_dir / '.eclipseproduct'
 
     if not eclipseproduct_file.exists():
         raise FileNotFoundError(f".eclipseproduct 文件不存在: {eclipseproduct_file}")
@@ -122,7 +168,14 @@ def find_and_copy_jars(dbeaver_dir, libs_dir):
     Returns:
         包含 jar 信息的字典列表，每个字典包含 artifactId, version, filename
     """
-    plugins_dir = dbeaver_dir / 'plugins'
+    # 根据操作系统确定 plugins 目录位置
+    system = platform.system()
+
+    if system == 'Darwin':  # macOS
+        # DBeaver.app/Contents/Eclipse/plugins
+        plugins_dir = dbeaver_dir / 'Contents' / 'Eclipse' / 'plugins'
+    else:  # Windows 和 Linux
+        plugins_dir = dbeaver_dir / 'plugins'
 
     if not plugins_dir.exists():
         raise FileNotFoundError(f"plugins 目录不存在: {plugins_dir}")
@@ -321,7 +374,14 @@ def deploy_agent_to_dbeaver(jar_file, dbeaver_dir):
     print("部署 agent 到 DBeaver...")
     print("=" * 60)
 
-    plugins_dir = dbeaver_dir / 'plugins'
+    # 根据操作系统确定 plugins 目录位置
+    system = platform.system()
+
+    if system == 'Darwin':  # macOS
+        plugins_dir = dbeaver_dir / 'Contents' / 'Eclipse' / 'plugins'
+    else:  # Windows 和 Linux
+        plugins_dir = dbeaver_dir / 'plugins'
+
     if not plugins_dir.exists():
         raise FileNotFoundError(f"plugins 目录不存在: {plugins_dir}")
 
@@ -351,7 +411,16 @@ def update_dbeaver_ini(dbeaver_dir):
     print("更新 dbeaver.ini...")
     print("=" * 60)
 
-    ini_file = dbeaver_dir / 'dbeaver.ini'
+    system = platform.system()
+
+    # 根据操作系统确定 ini 文件位置和 javaagent 路径
+    if system == 'Darwin':  # macOS
+        # DBeaver.app/Contents/Eclipse/dbeaver.ini
+        ini_file = dbeaver_dir / 'Contents' / 'Eclipse' / 'dbeaver.ini'
+        javaagent_path = '../Eclipse/plugins/dbeaver-agent.jar'
+    else:  # Windows 和 Linux
+        ini_file = dbeaver_dir / 'dbeaver.ini'
+        javaagent_path = 'plugins/dbeaver-agent.jar'
 
     if not ini_file.exists():
         raise FileNotFoundError(f"dbeaver.ini 文件不存在: {ini_file}")
@@ -361,10 +430,10 @@ def update_dbeaver_ini(dbeaver_dir):
         lines = f.readlines()
 
     # 检查是否已存在配置
-    javaagent_line = '-javaagent:plugins/dbeaver-agent.jar\n'
+    javaagent_line = f'-javaagent:{javaagent_path}\n'
     debug_line = '-Dlm.debug.mode=true\n'
 
-    has_javaagent = any(line.strip() == javaagent_line.strip() for line in lines)
+    has_javaagent = any(javaagent_path in line for line in lines)
     has_debug = any(line.strip() == debug_line.strip() for line in lines)
 
     # 找到 -vmargs 的位置
@@ -389,7 +458,7 @@ def update_dbeaver_ini(dbeaver_dir):
         insert_index += 1
         modified = True
     else:
-        print(f"  - 已存在: {javaagent_line.strip()}")
+        print(f"  - 已存在: javaagent 配置")
 
     if not has_debug:
         lines.insert(insert_index, debug_line)
@@ -418,18 +487,36 @@ def start_dbeaver(dbeaver_dir):
     print("启动 DBeaver...")
     print("=" * 60)
 
-    dbeaver_exe = dbeaver_dir / 'dbeaver.exe'
+    system = platform.system()
 
-    if not dbeaver_exe.exists():
-        raise FileNotFoundError(f"dbeaver.exe 不存在: {dbeaver_exe}")
-
-    try:
-        # 使用 Popen 启动，不等待进程结束
-        subprocess.Popen([str(dbeaver_exe)], cwd=str(dbeaver_dir))
-        print(f"✓ DBeaver 已启动")
-    except Exception as e:
-        print(f"✗ 启动失败: {e}")
-        raise
+    if system == 'Darwin':  # macOS
+        # 使用 open 命令启动 .app
+        try:
+            subprocess.Popen(['open', str(dbeaver_dir)])
+            print(f"✓ DBeaver 已启动")
+        except Exception as e:
+            print(f"✗ 启动失败: {e}")
+            raise
+    elif system == 'Windows':
+        dbeaver_exe = dbeaver_dir / 'dbeaver.exe'
+        if not dbeaver_exe.exists():
+            raise FileNotFoundError(f"dbeaver.exe 不存在: {dbeaver_exe}")
+        try:
+            subprocess.Popen([str(dbeaver_exe)], cwd=str(dbeaver_dir))
+            print(f"✓ DBeaver 已启动")
+        except Exception as e:
+            print(f"✗ 启动失败: {e}")
+            raise
+    else:  # Linux
+        dbeaver_bin = dbeaver_dir / 'dbeaver'
+        if not dbeaver_bin.exists():
+            raise FileNotFoundError(f"dbeaver 不存在: {dbeaver_bin}")
+        try:
+            subprocess.Popen([str(dbeaver_bin)], cwd=str(dbeaver_dir))
+            print(f"✓ DBeaver 已启动")
+        except Exception as e:
+            print(f"✗ 启动失败: {e}")
+            raise
 
 
 def main():
@@ -437,6 +524,9 @@ def main():
     print("=" * 60)
     print("DBeaver Agent - 自动部署工具")
     print("=" * 60)
+
+    system = platform.system()
+    print(f"检测到操作系统: {system}")
 
     # 获取脚本所在目录（项目根目录）
     script_dir = Path(__file__).parent.absolute()
@@ -457,8 +547,12 @@ def main():
     else:
         # 交互式输入
         print("\n请输入 DBeaver 路径：")
-        print("  - 可以是目录路径，例如: G:\\Portable\\dbeaver")
-        print("  - 也可以是 dbeaver.exe 文件路径，例如: G:\\Portable\\dbeaver\\dbeaver.exe")
+        if system == 'Darwin':
+            print("  - macOS: /Applications/DBeaver.app 或 /Applications/DBeaverUltimate.app")
+        elif system == 'Windows':
+            print("  - Windows: C:\\Program Files\\DBeaver 或 dbeaver.exe 路径")
+        else:
+            print("  - Linux: /opt/dbeaver 或 dbeaver 可执行文件路径")
         print()
         dbeaver_path = input("路径: ").strip()
 
@@ -468,36 +562,40 @@ def main():
 
     try:
         # 步骤1: 确定 DBeaver 目录
-        print(f"\n[1/6] 正在处理: {dbeaver_path}")
+        print(f"\n[1/8] 正在处理: {dbeaver_path}")
         dbeaver_dir = find_dbeaver_dir(dbeaver_path)
         print(f"✓ DBeaver 目录: {dbeaver_dir}")
 
         # 步骤2: 读取版本号
-        print(f"\n[2/6] 读取版本信息...")
+        print(f"\n[2/8] 读取版本信息...")
         main_version = read_version_from_eclipseproduct(dbeaver_dir)
         print(f"✓ 检测到版本: {main_version}")
 
         # 步骤3: 查找并复制依赖 jar 文件
-        print(f"\n[3/6] 从 plugins 目录查找依赖...")
+        print(f"\n[3/8] 从 plugins 目录查找依赖...")
         jar_info_list = find_and_copy_jars(dbeaver_dir, libs_dir)
 
         if not jar_info_list:
             print("警告: 未找到任何依赖 jar 文件")
 
         # 步骤4: 更新 pom.xml
-        print(f"\n[4/6] 更新 pom.xml...")
+        print(f"\n[4/8] 更新 pom.xml...")
         update_pom_xml(pom_file, main_version, jar_info_list)
 
         # 步骤5: 编译项目
+        print(f"\n[5/8] 编译项目...")
         compiled_jar = compile_project(script_dir)
 
         # 步骤6: 部署到 DBeaver
+        print(f"\n[6/8] 部署到 DBeaver...")
         deploy_agent_to_dbeaver(compiled_jar, dbeaver_dir)
 
         # 步骤7: 更新配置文件
+        print(f"\n[7/8] 更新配置文件...")
         update_dbeaver_ini(dbeaver_dir)
 
         # 步骤8: 启动 DBeaver
+        print(f"\n[8/8] 启动 DBeaver...")
         start_dbeaver(dbeaver_dir)
 
         print("\n" + "=" * 60)
