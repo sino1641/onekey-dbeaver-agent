@@ -22,15 +22,16 @@ DBeaver Agent 自动部署工具
     python onekey.py [DBeaver安装路径]
 
 示例：
-    python onekey.py "C:\\Program Files\\DBeaver"                    # Windows
+    python onekey.py "C:\\Program Files\\DBeaver"                   # Windows
     python onekey.py "/Applications/DBeaver.app"                    # macOS
-    python onekey.py "/opt/dbeaver"                                 # Linux
+    python onekey.py "/usr/share/dbeaver"                           # Linux
     python onekey.py                                                # 交互式输入路径
 
 """
 
 import os
 import sys
+import time
 import re
 import shutil
 import subprocess
@@ -72,6 +73,44 @@ class ProgressTracker:
 
 # 全局进度跟踪器实例（将在 main 函数中初始化）
 progress = None
+
+# 全局变量：许可证密钥和剪贴板工具（用于在完成提示中显示）
+_license_key = None
+_clipboard_tool = None
+
+
+def get_real_user():
+    """
+    获取真实用户信息（当使用 sudo 运行时）
+
+    Returns:
+        tuple: (username, uid, gid, home_dir) 或 (None, None, None, None)
+
+    Note:
+        - 如果脚本通过 sudo 运行，返回 SUDO_USER 的信息
+        - 否则返回当前用户信息
+        - Windows 和 macOS 返回 None
+    """
+    system = platform.system()
+
+    if system != 'Linux':
+        return None, None, None, None
+
+    # 检查是否通过 sudo 运行
+    sudo_user = os.environ.get('SUDO_USER')
+    sudo_uid = os.environ.get('SUDO_UID')
+    sudo_gid = os.environ.get('SUDO_GID')
+
+    if sudo_user and sudo_uid and sudo_gid:
+        # 获取真实用户的 HOME 目录
+        import pwd
+        try:
+            pw_record = pwd.getpwnam(sudo_user)
+            return sudo_user, int(sudo_uid), int(sudo_gid), pw_record.pw_dir
+        except KeyError:
+            return sudo_user, int(sudo_uid), int(sudo_gid), f"/home/{sudo_user}"
+
+    return None, None, None, None
 
 
 def check_maven_available():
@@ -870,35 +909,28 @@ def generate_license(dbeaver_dir, product_id, product_version):
 
             if license_key:
                 print(f"  ✓ 许可证生成成功！")
-                print(f"\n--- LICENSE ---")
-                print(license_key)
-                print(f"--- END LICENSE ---\n")
 
                 # 复制到剪贴板（根据操作系统使用不同的命令）
+                clipboard_tool = None
                 try:
                     if system == 'Darwin':  # macOS
                         subprocess.run(['pbcopy'], input=license_key.encode(), check=True)
-                        print(f"  ✓ 已复制到剪贴板 (macOS)")
+                        clipboard_tool = 'pbcopy'
                     elif system == 'Windows':
                         subprocess.run(['clip'], input=license_key.encode(), check=True, shell=True)
-                        print(f"  ✓ 已复制到剪贴板 (Windows)")
-                    else:  # Linux
-                        # 尝试使用 xclip 或 xsel
-                        try:
-                            subprocess.run(['xclip', '-selection', 'clipboard'],
-                                         input=license_key.encode(), check=True)
-                            print(f"  ✓ 已复制到剪贴板 (xclip)")
-                        except FileNotFoundError:
-                            try:
-                                subprocess.run(['xsel', '--clipboard'],
-                                             input=license_key.encode(), check=True)
-                                print(f"  ✓ 已复制到剪贴板 (xsel)")
-                            except FileNotFoundError:
-                                print(f"  ⚠ 未找到剪贴板工具 (xclip/xsel)")
-                                print(f"  提示: 请手动复制上面的许可证")
+                        clipboard_tool = 'clip'
+                    # Linux: 不使用剪贴板工具，让用户手动复制
+                    # 因为 sudo 环境下的剪贴板工具存在环境变量问题
+
+                    # 将许可证密钥和剪贴板状态存储到全局变量
+                    global _license_key, _clipboard_tool
+                    _license_key = license_key
+                    _clipboard_tool = clipboard_tool
+
                 except Exception as e:
-                    print(f"  ⚠ 复制到剪贴板失败: {e}")
-                    print(f"  提示: 请手动复制上面的许可证")
+                    # 复制失败，但仍保存密钥以便后续显示
+                    _license_key = license_key
+                    _clipboard_tool = None
             else:
                 print(f"  ✗ 未能解析许可证")
                 print(f"  输出: {result.stdout}")
@@ -912,25 +944,37 @@ def generate_license(dbeaver_dir, product_id, product_version):
         print(f"  ✗ 生成许可证失败: {e}")
 
 
+
+
+
+
 def start_dbeaver(dbeaver_dir):
     """
-    启动 DBeaver 应用程序
+    启动 DBeaver 应用程序。
 
-    根据不同的操作系统使用相应的启动方式：
-    - macOS: 使用 'open' 命令启动 .app 包
-    - Windows: 直接执行 dbeaver.exe
-    - Linux: 直接执行 dbeaver 可执行文件
+    根据操作系统类型，使用相应的启动方式：
+    - Windows: 优先使用 dbeaver-cli.exe（显示详细日志），回退到 dbeaver.exe
+    - macOS: 使用 `open` 命令启动应用程序包，并返回调试日志路径
+    - Linux: 直接执行 dbeaver 二进制文件
 
     Args:
-        dbeaver_dir (Path): DBeaver 安装目录
+        dbeaver_dir (Path): DBeaver 安装目录的路径对象
+
+    Returns:
+        Path | None: macOS 平台返回调试日志路径，便于后续实时跟踪日志；
+                    其他平台返回 None
 
     Raises:
-        FileNotFoundError: 可执行文件不存在
-        Exception: 启动过程中发生的其他错误
+        FileNotFoundError: 找不到 DBeaver 可执行文件
 
     Note:
-        - 使用 subprocess.Popen 以非阻塞方式启动
-        - DBeaver 会在独立进程中运行，脚本会立即返回
+        - Windows: 会优先尝试启动 dbeaver-cli.exe，该版本可在新命令行窗口
+          显示详细日志，便于调试 javaagent 加载情况。启动前会自动创建
+          dbeaver-cli.ini 配置文件（从 dbeaver.ini 复制）
+        - macOS: 启动后会等待 2 秒，以便日志文件生成，然后返回日志路径
+          供 stream_macos_debug_log 函数使用
+        - Linux: 在 DBeaver 安装目录下启动二进制文件
+        - 所有平台都会设置正确的工作目录，确保相对路径配置正常工作
     """
     print("\n" + "=" * 60)
     print("启动 DBeaver...")
@@ -938,36 +982,155 @@ def start_dbeaver(dbeaver_dir):
 
     system = platform.system()
 
-    if system == 'Darwin':  # macOS
-        # macOS 使用 open 命令启动 .app 包
-        try:
-            subprocess.Popen(['open', str(dbeaver_dir)])
-            print(f"✓ DBeaver 已启动")
-        except Exception as e:
-            print(f"✗ 启动失败: {e}")
-            raise
-    elif system == 'Windows':
-        # Windows 执行 dbeaver.exe
-        dbeaver_exe = dbeaver_dir / 'dbeaver.exe'
-        if not dbeaver_exe.exists():
-            raise FileNotFoundError(f"dbeaver.exe 不存在: {dbeaver_exe}")
-        try:
-            subprocess.Popen([str(dbeaver_exe)], cwd=str(dbeaver_dir))
-            print(f"✓ DBeaver 已启动")
-        except Exception as e:
-            print(f"✗ 启动失败: {e}")
-            raise
-    else:  # Linux
-        # Linux 执行 dbeaver 可执行文件
+    if system == 'Windows':
+        # Windows 平台：准备 CLI 配置文件
+        ini_file = dbeaver_dir / 'dbeaver.ini'
+        cli_ini_file = dbeaver_dir / 'dbeaver-cli.ini'
+
+        # 如果 dbeaver.ini 存在但 dbeaver-cli.ini 不存在，则复制
+        if ini_file.exists() and not cli_ini_file.exists():
+            try:
+                shutil.copy2(ini_file, cli_ini_file)
+                print(f"  ✓ 已创建 CLI 配置: {cli_ini_file.name}")
+            except Exception as e:
+                print(f"  警告: 无法创建 CLI 配置文件: {e}")
+
+        # 优先使用 CLI 版本
+        cli_exe = dbeaver_dir / 'dbeaver-cli.exe'
+        exe = dbeaver_dir / 'dbeaver.exe'
+
+        if cli_exe.exists():
+            print(f"  ✓ 使用 CLI 版本启动（可查看详细日志）")
+            # 使用 CREATE_NEW_CONSOLE 标志在新的命令行窗口中启动
+            create_flags = getattr(subprocess, 'CREATE_NEW_CONSOLE', 0)
+            subprocess.Popen(
+                [str(cli_exe)],
+                cwd=str(dbeaver_dir),
+                shell=False,
+                creationflags=create_flags,
+            )
+        elif exe.exists():
+            print(f"  ✓ 已启动 DBeaver")
+            print(f"  提示: 若需查看详细日志，可使用 dbeaver-cli.exe")
+            subprocess.Popen([str(exe)], cwd=str(dbeaver_dir), shell=False)
+        else:
+            raise FileNotFoundError(f"找不到 DBeaver 可执行文件: {exe}")
+
+        return None
+
+    elif system == 'Darwin':  # macOS
+        print(f"  ✓ 已启动 DBeaver")
+        subprocess.Popen(['open', str(dbeaver_dir)])
+
+        # 等待应用启动，确保日志文件生成
+        time.sleep(2)
+
+        log_path = Path.home() / 'Library' / 'DBeaverData' / 'workspace6' / '.metadata' / 'dbeaver-debug.log'
+        if log_path.exists():
+            print(f"  提示: 日志文件已就绪，将在完成提示后输出日志")
+        else:
+            print(f"  提示: 日志文件尚未生成，稍后将尝试跟踪")
+            print(f"        路径: {log_path}")
+
+        return log_path
+
+    elif system == 'Linux':
         dbeaver_bin = dbeaver_dir / 'dbeaver'
         if not dbeaver_bin.exists():
-            raise FileNotFoundError(f"dbeaver 不存在: {dbeaver_bin}")
-        try:
-            subprocess.Popen([str(dbeaver_bin)], cwd=str(dbeaver_dir))
-            print(f"✓ DBeaver 已启动")
-        except Exception as e:
-            print(f"✗ 启动失败: {e}")
-            raise
+            raise FileNotFoundError(f"找不到 DBeaver 可执行文件: {dbeaver_bin}")
+
+        print(f"  ✓ 已启动 DBeaver")
+
+        # 获取真实用户信息
+        real_user, real_uid, real_gid, real_home = get_real_user()
+
+        if real_user:
+            # 以真实用户身份启动 DBeaver
+            env = os.environ.copy()
+            env['HOME'] = real_home
+
+            # 设置 Wayland 相关环境变量
+            xdg_runtime_dir = f"/run/user/{real_uid}"
+            env['XDG_RUNTIME_DIR'] = xdg_runtime_dir
+
+            # 设置 WAYLAND_DISPLAY
+            if 'WAYLAND_DISPLAY' not in env:
+                env['WAYLAND_DISPLAY'] = 'wayland-0'
+
+            # 保留 DISPLAY (X11)
+            if 'DISPLAY' not in env:
+                env['DISPLAY'] = ':0'
+
+            # 使用 sudo -u 降权启动
+            subprocess.Popen(
+                ['sudo', '-u', real_user, str(dbeaver_bin)],
+                cwd=str(dbeaver_dir),
+                env=env,
+                start_new_session=True  # 创建新会话，避免继承 sudo 权限
+            )
+            print(f"  提示: 以用户 {real_user} 身份启动")
+        else:
+            # 直接以当前用户启动
+            subprocess.Popen(
+                [str(dbeaver_bin)],
+                cwd=str(dbeaver_dir),
+                start_new_session=True
+            )
+
+        return None
+
+    else:
+        # 未知操作系统
+        raise RuntimeError(f"不支持的操作系统: {system}")
+
+
+def stream_macos_debug_log(log_path):
+    """
+    持续输出 macOS 平台的 DBeaver 调试日志。
+
+    该函数使用 tail -f 命令实时跟踪日志文件，显示 javaagent 加载、
+    许可证验证等调试信息。用户可以按 Ctrl+C 中断日志输出。
+
+    Args:
+        log_path (Path | None): 调试日志文件的路径对象
+
+    Note:
+        - 如果日志文件不存在，会显示手动执行命令的提示
+        - 如果 tail 命令不可用（罕见情况），也会给出替代方案
+        - 日志输出会持续到用户按 Ctrl+C 或关闭终端
+    """
+    if not log_path:
+        print("\n⚠ macOS 日志: 未获取到日志路径")
+        return
+
+    print("\n" + "=" * 60)
+    print("macOS 调试日志 (按 Ctrl+C 结束)")
+    print("=" * 60)
+    print()
+
+    if not log_path.exists():
+        print(f"⚠ 日志文件尚未创建: {log_path}")
+        print("\n可能原因：")
+        print("  1. DBeaver 尚未完全启动")
+        print("  2. 调试模式未正确配置")
+        print("\n稍后可手动执行以下命令查看日志：")
+        print(f"  tail -f '{log_path}'")
+        return
+
+    try:
+        # 使用 tail -f 实时跟踪日志文件
+        subprocess.call(['tail', '-f', str(log_path)])
+    except FileNotFoundError:
+        print("⚠ 未找到 tail 命令")
+        print("\n请手动执行以下命令查看日志：")
+        print(f"  tail -f '{log_path}'")
+    except KeyboardInterrupt:
+        # 用户按 Ctrl+C 中断
+        print("\n\n日志输出已停止")
+    except Exception as e:
+        print(f"\n⚠ 日志输出出错: {e}")
+        print("\n请手动执行以下命令查看日志：")
+        print(f"  tail -f '{log_path}'")
 
 
 def main():
@@ -994,7 +1157,7 @@ def main():
     示例：
         python onekey.py "C:\\Program Files\\DBeaver"
         python onekey.py "/Applications/DBeaver.app"
-        python onekey.py "/opt/dbeaver"
+        python onekey.py "/usr/share/dbeaver"
         python onekey.py  # 交互式输入
 
     Returns:
@@ -1032,13 +1195,15 @@ def main():
         elif system == 'Windows':
             print("  - Windows: C:\\Program Files\\DBeaver 或 dbeaver.exe 路径")
         else:
-            print("  - Linux: /opt/dbeaver 或 dbeaver 可执行文件路径")
+            print("  - Linux: /usr/share/dbeaver 或 dbeaver 可执行文件路径")
         print()
         dbeaver_path = input("路径: ").strip()
 
     if not dbeaver_path:
         print("错误: 未提供路径")
         sys.exit(1)
+
+    mac_log_path = None
 
     try:
         # 初始化进度跟踪器（总共 10 个步骤）
@@ -1089,17 +1254,37 @@ def main():
 
         # ===== 步骤 10: 启动 DBeaver =====
         progress.next_step("启动 DBeaver...")
-        start_dbeaver(dbeaver_dir)
+        mac_log_path = start_dbeaver(dbeaver_dir)
 
         # 完成提示
         print("\n" + "=" * 60)
         print("✓ 所有步骤完成！DBeaver 已启动")
         print("=" * 60)
         print("\n下一步：")
-        print("  1. 在 DBeaver 中打开 Help -> Register")
-        print("  2. 粘贴生成的许可证密钥（已复制到剪贴板）")
-        print("  3. 点击 'Register' 按钮")
-        print("\n如果遇到问题，请查看终端输出的详细信息。")
+        print("  1. 点击 'Import license'")
+
+        # 显示许可证密钥和剪贴板状态
+        global _license_key, _clipboard_tool
+        if _clipboard_tool:
+            print("  2. 粘贴下列许可证密钥（已复制到剪贴板）")
+        else:
+            print("  2. 粘贴下列许可证密钥（未找到剪贴板工具，请手动复制）")
+
+        if _license_key:
+            print(f"\n--- LICENSE ---")
+            print(f"{_license_key}")
+            print(f"--- END LICENSE ---\n")
+
+        print("  3. 点击 'Import' 按钮")
+        print("  4. 激活后勾选 'Do not share data'")
+
+        system = platform.system()
+        if system == 'Windows':
+            print("\nWindows 提示：")
+            print("  - 若需查看详细日志，可关闭当前窗口")
+            print("  - 在命令行运行: dbeaver-cli.exe")
+        elif system == 'Darwin':
+            stream_macos_debug_log(mac_log_path)
 
     except Exception as e:
         # 捕获所有异常并显示错误信息
