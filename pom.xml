@@ -7,12 +7,8 @@
     <artifactId>dbeaver-agent</artifactId>
     <version>25.2.0</version>
     <packaging>jar</packaging>
-
-    <scm>
-        <connection>scm:git:https://github.com/wgzhao/dbeaver-agent</connection>
-        <developerConnection>scm:git:ssh://github.com:wgzhao/dbeaver-agent.git</developerConnection>
-        <url>https://github.com/wgzhao/dbeaver-agent</url>
-    </scm>
+    <name>dbeaver-agent</name>
+    <description>DBeaver Agent</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
