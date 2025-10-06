@@ -202,8 +202,6 @@ gen-license.bat -t ee -v 24 "C:\Program Files\DBeaver"         # Windows
 - ⚠️ The script executes in DBeaver's plugins directory, using the deployed dbeaver-agent.jar
 - ℹ️ The script will automatically read product type and version from `.eclipseproduct` file
 
-> **Note**: For CloudBeaver support, please see #10
-
 ---
 
 ## FAQ

@@ -202,8 +202,6 @@ gen-license.bat -t ee -v 24 "C:\Program Files\DBeaver"         # Windows
 - ⚠️ 脚本会在 DBeaver 的 plugins 目录中执行，直接使用已部署的 dbeaver-agent.jar
 - ℹ️ 脚本会自动从 `.eclipseproduct` 文件读取产品类型和版本号
 
-> **注意**：关于 CloudBeaver 支持，请查看 #10
-
 ---
 
 ## 常见问题
