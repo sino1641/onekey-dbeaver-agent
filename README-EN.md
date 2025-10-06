@@ -182,32 +182,6 @@ Options:
 
 > **Note**: For CloudBeaver support, please see #10
 
-### Graphical User Interface (GUI)
-
-For easier use, a cross-platform graphical user interface is available.
-
-#### Starting the GUI
-
-**Windows:**
-```cmd
-start-ui.bat
-```
-
-**Linux/macOS:**
-```bash
-./start-ui.sh
-```
-
-#### GUI Features
-
-- 🎨 **Platform-native appearance**: Displays appropriate native interface styles on different operating systems
-- 📝 **Easy to use**: Dropdown menus for product and license type selection, text field for version input
-- ⚡ **Instant feedback**: Status bar shows operation progress and results
-- 📋 **One-click copy**: Generated license can be directly copied to clipboard
-- 🛡️ **Error handling**: Input validation and friendly error messages
-
-For more detailed information about the GUI, please refer to [UI-DOCUMENTATION.md](UI-DOCUMENTATION.md).
-
 ---
 
 ## FAQ

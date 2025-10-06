@@ -182,32 +182,6 @@ Usage: gen-license [-h] [-p=<productName>] [-t=<licenseType>] [-v=<productVersio
 
 > **注意**：关于 CloudBeaver 支持，请查看 #10
 
-### 图形用户界面 (GUI)
-
-为了更方便的使用，提供了跨平台的图形用户界面。
-
-#### 启动 GUI
-
-**Windows:**
-```cmd
-start-ui.bat
-```
-
-**Linux/macOS:**
-```bash
-./start-ui.sh
-```
-
-#### GUI 特性
-
-- 🎨 **平台原生外观**：在不同操作系统上显示相应的原生界面风格
-- 📝 **简单易用**：下拉菜单选择产品和许可类型，文本框输入版本号
-- ⚡ **即时反馈**：状态栏显示操作进度和结果
-- 📋 **一键复制**：生成许可证后可直接复制到剪贴板
-- 🛡️ **错误处理**：输入验证和友好的错误提示
-
-更多关于 GUI 的详细信息，请参阅 [UI-DOCUMENTATION.md](UI-DOCUMENTATION.md)。
-
 ---
 
 ## 常见问题
