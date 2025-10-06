@@ -1,17 +1,20 @@
 [English](README-EN.md)
 
-# DBeaver Agent for 25.x
+# DBeaver Agent Onekey Script
 
-<img width="441" alt="image" src="images/v25.2.jpg" />
-<img width="441" alt="image" src="images/v25.1.jpg" />
+## 关于本项目
 
-该分支针对 `25.1` 和 `25.2` 版本。
+本项目基于 [wgzhao/dbeaver-agent](https://github.com/wgzhao/dbeaver-agent) fork 而来，在上游代码基础上增加了：
 
-若需要参考 `25.0` 版本，请查看 [v25.0](https://github.com/wgzhao/dbeaver-agent/tree/v25.0) 分支,
-若需参考 `24.x`版本，请查看 [v24.0](https://github.com/wgzhao/dbeaver-agent/tree/v24.0) 分支，
-其他低版本则请参考 `master` 分支。
+- ✅ **一键部署脚本 (onekey.py)**：自动完成依赖查找、编译、部署、配置等全流程
+- ✅ **多环境测试**：在 Windows、macOS、Linux (RHEL/Ubuntu/ARM) 等多个平台和 JDK 发行版中测试
+- ✅ **Agent 代码同步**：核心 Agent 代码会持续与上游仓库保持同步
 
-## 支持的版本
+## 免责声明
+
+本 Java Agent 仅供学习和研究用途，请在下载后 24 小时内删除，并支持正版：https://dbeaver.com/buy
+
+## 经测试版本
 
 - `25.2`
 - `25.1`
@@ -253,22 +256,20 @@ A: 由于 Linux 下使用 `sudo` 运行脚本时，剪贴板工具（wl-copy、x
 ---
 
 ## 支持的产品
-## 支持的产品
 
 - ✅ **DBeaver Ultimate Edition** (UE)
 - ✅ **DBeaver Enterprise Edition** (EE)
 - ✅ **DBeaver Lite Edition** (LE)
 
-> **注意**：关于 CloudBeaver 支持，请查看 [#10](https://github.com/sino1641/dbeaver-agent/issues/10)
+> **注意**：关于 CloudBeaver 支持，请查看上游 issue [#10](https://github.com/wgzhao/dbeaver-agent/issues/10)。
+>
+> 个人建议该产品请支持正版：https://dbeaver.com/buy/#cloudbeaver
 
-## 支持的操作系统
+## 经测试系统及依赖
 
-- ✅ **Windows** 10/11
-- ✅ **macOS** 10.15+ (推荐 macOS 12.6+)
-- ✅ **Linux** (各主流发行版)
-
----
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=wgzhao/dbeaver-agent&type=Date)](https://www.star-history.com/#wgzhao/dbeaver-agent&Date)
+| 操作系统 | 版本 | JDK | 状态 |
+|---------|------|-----|------|
+| Windows | 11 25H2 | Microsoft Build of OpenJDK 21 | ✅ |
+| RHEL | 10 | Red Hat Build of OpenJDK 21 | ✅ |
+| Ubuntu on EC2 Graviton | 24.04 | Amazon Corretto 21 | ✅ |
+| macOS | 26.0 | Zulu 21 | ✅ |

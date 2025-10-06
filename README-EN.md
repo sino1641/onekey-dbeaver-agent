@@ -1,17 +1,20 @@
 [中文说明](README.md)
 
-# DBeaver Agent for 25.x
+# DBeaver Agent Onekey Script
 
-<img width="441" alt="image" src="images/v25.2.jpg" />
-<img width="441" alt="image" src="images/v25.1.jpg" />
+## About This Project
 
-This branch targets versions `25.1` and `25.2`.
+This project is forked from [wgzhao/dbeaver-agent](https://github.com/wgzhao/dbeaver-agent), with the following enhancements:
 
-For version `25.0`, please see the [v25.0](https://github.com/wgzhao/dbeaver-agent/tree/v25.0) branch.
-For version `24.x`, please see the [v24.0](https://github.com/wgzhao/dbeaver-agent/tree/v24.0) branch.
-For other older versions, please refer to the `master` branch.
+- ✅ **One-Click Deployment Script (onekey.py)**: Automates the entire workflow including dependency discovery, compilation, deployment, and configuration
+- ✅ **Multi-Environment Testing**: Tested across multiple platforms (Windows, macOS, Linux RHEL/Ubuntu/ARM) and JDK distributions
+- ✅ **Agent Code Synchronization**: Core Agent code is kept in sync with the upstream repository
 
-## Supported Versions
+## Disclaimer
+
+This Java Agent is for educational and research purposes only. Please delete it within 24 hours after downloading and support the official version: https://dbeaver.com/buy
+
+## Tested Versions
 
 - `25.2`
 - `25.1`
@@ -253,22 +256,20 @@ Then paste it into the "Import license" dialog in DBeaver.
 ---
 
 ## Supported Products
-## Supported Products
 
 - ✅ **DBeaver Ultimate Edition** (UE)
 - ✅ **DBeaver Enterprise Edition** (EE)
 - ✅ **DBeaver Lite Edition** (LE)
 
-> **Note**: For CloudBeaver support, please see [#10](https://github.com/sino1641/dbeaver-agent/issues/10)
+> **Note**: For CloudBeaver support, please see upstream issue [#10](https://github.com/wgzhao/dbeaver-agent/issues/10).
+>
+> Personal recommendation: Please support the official version at https://dbeaver.com/buy/#cloudbeaver
 
-## Supported Operating Systems
+## Tested Systems and Dependencies
 
-- ✅ **Windows** 10/11
-- ✅ **macOS** 10.15+ (macOS 12.6+ recommended)
-- ✅ **Linux** (major distributions)
-
----
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=wgzhao/dbeaver-agent&type=Date)](https://www.star-history.com/#wgzhao/dbeaver-agent&Date)
+| Operating System | Version | JDK | Status |
+|-----------------|---------|-----|--------|
+| Windows | 11 25H2 | Microsoft Build of OpenJDK 21 | ✅ |
+| RHEL | 10 | Red Hat Build of OpenJDK 21 | ✅ |
+| Ubuntu on EC2 Graviton | 24.04 | Amazon Corretto 21 | ✅ |
+| macOS | 26.0 | Zulu 21 | ✅ |
