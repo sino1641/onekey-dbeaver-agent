@@ -8,6 +8,12 @@
     <version>25.2.0</version>
     <packaging>jar</packaging>
 
+    <scm>
+        <connection>scm:git:https://github.com/wgzhao/dbeaver-agent</connection>
+        <developerConnection>scm:git:ssh://github.com:wgzhao/dbeaver-agent.git</developerConnection>
+        <url>https://github.com/wgzhao/dbeaver-agent</url>
+    </scm>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
@@ -79,7 +85,9 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
                 <configuration>
-                    <release>11</release>
+                    <release>21</release>
+                    <source>21</source>
+                    <target>21</target>
                 </configuration>
             </plugin>
             <plugin>
