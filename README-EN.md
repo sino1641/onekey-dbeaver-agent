@@ -153,35 +153,54 @@ Additionally, to prevent DBeaver from sending data to `stats.dbeaver.com`, modif
 
 ### Command Line Interface (CLI)
 
+Use the `gen-license` script to generate licenses directly from the plugins directory in your DBeaver installation:
+
 ```bash
 # Linux/macOS
-./gen-license.sh
+./gen-license.sh [OPTIONS] [DBeaver_Path]
 
 # Windows
-gen-license.bat
+gen-license.bat [OPTIONS] [DBeaver_Path]
 ```
 
-**Supported Parameters:**
+**Arguments:**
+- `[DBeaver_Path]`: Path to DBeaver installation directory or executable (optional)
+  - If not provided, the script will enter interactive mode and prompt for input
+  - Can be a directory (e.g., `C:\Program Files\DBeaver`)
+  - Or an executable file (e.g., `g:\Portable\dbeaver\dbeaver.exe`)
 
-```
-Usage: gen-license [-h] [-p=<productName>] [-t=<licenseType>] [-v=<productVersion>]
-
-Options:
-  -h, --help                Show help message
-  -p, --product=<name>      Product name: dbeaver (default)
-  -t, --type=<type>         License type: le (Lite), ee (Enterprise), ue (Ultimate, default)
-  -v, --version=<version>   Product version: default is 25
-```
+**Optional Parameters:**
+- `-h, --help`: Show help message
+- `-t, --type=<type>`: License type
+  - `le`: Lite Edition
+  - `ee`: Enterprise Edition
+  - `ue`: Ultimate Edition
+  - If not specified, the script will try to read from `.eclipseproduct` file, or prompt for input
+- `-v, --version=<version>`: Product version (e.g., `25`)
+  - If not specified, the script will try to read from `.eclipseproduct` file, or prompt for input
 
 **Examples:**
 
 ```bash
-# Generate DBeaver Ultimate Edition 25 license (default)
-./gen-license.sh
+# Interactive mode (no path or parameters, script will auto-read or prompt)
+./gen-license.sh                                                # Linux/macOS
+gen-license.bat                                                 # Windows
 
-# Generate DBeaver Enterprise Edition 24 license
-./gen-license.sh -t ee -v 24
+# Command line mode (provide path, auto-read version and product type)
+./gen-license.sh "/Applications/DBeaver.app"                    # macOS
+./gen-license.sh "/usr/share/dbeaver"                           # Linux
+gen-license.bat "C:\Program Files\DBeaver"                      # Windows
+gen-license.bat "C:\Program Files\DBeaver\dbeaver.exe"         # Windows (executable)
+
+# Specify license type and version (override auto-read)
+./gen-license.sh -t ee -v 24 "/usr/share/dbeaver"              # Linux
+gen-license.bat -t ee -v 24 "C:\Program Files\DBeaver"         # Windows
 ```
+
+**Important Notes:**
+- ⚠️ Before using this script, you must deploy the agent using `onekey.py` or manually
+- ⚠️ The script executes in DBeaver's plugins directory, using the deployed dbeaver-agent.jar
+- ℹ️ The script will automatically read product type and version from `.eclipseproduct` file
 
 > **Note**: For CloudBeaver support, please see #10
 

@@ -153,35 +153,54 @@ cp target/dbeaver-agent-*-jar-with-dependencies.jar /usr/share/dbeaver/plugins/d
 
 ### 命令行界面 (CLI)
 
+使用 `gen-license` 脚本，直接从 DBeaver 安装目录的 plugins 中生成许可证：
+
 ```bash
 # Linux/macOS
-./gen-license.sh
+./gen-license.sh [选项] [DBeaver路径]
 
 # Windows
-gen-license.bat
+gen-license.bat [选项] [DBeaver路径]
 ```
 
-**支持的参数：**
+**参数说明：**
+- `[DBeaver路径]`：DBeaver 安装目录或可执行文件路径（可选）
+  - 如果不提供路径，脚本会进入交互式模式，提示输入路径
+  - 可以是目录（如 `C:\Program Files\DBeaver`）
+  - 也可以是可执行文件（如 `g:\Portable\dbeaver\dbeaver.exe`）
 
-```
-Usage: gen-license [-h] [-p=<productName>] [-t=<licenseType>] [-v=<productVersion>]
-
-选项：
-  -h, --help                显示帮助信息
-  -p, --product=<name>      产品名称：dbeaver（默认）
-  -t, --type=<type>         许可类型：le（Lite版）、ee（Enterprise版）、ue（Ultimate版，默认）
-  -v, --version=<version>   产品版本：默认 25
-```
+**可选参数：**
+- `-h, --help`：显示帮助信息
+- `-t, --type=<type>`：许可类型
+  - `le`：Lite Edition
+  - `ee`：Enterprise Edition
+  - `ue`：Ultimate Edition
+  - 如果不指定，脚本会尝试从 `.eclipseproduct` 文件读取，失败则提示用户输入
+- `-v, --version=<version>`：产品版本（如 `25`）
+  - 如果不指定，脚本会尝试从 `.eclipseproduct` 文件读取，失败则提示用户输入
 
 **示例：**
 
 ```bash
-# 生成 DBeaver Ultimate Edition 25 许可证（默认）
-./gen-license.sh
+# 交互式模式（不提供路径和参数，脚本会自动读取或提示输入）
+./gen-license.sh                                                # Linux/macOS
+gen-license.bat                                                 # Windows
 
-# 生成 DBeaver Enterprise Edition 24 许可证
-./gen-license.sh -t ee -v 24
+# 命令行模式（直接提供路径，自动读取版本和产品类型）
+./gen-license.sh "/Applications/DBeaver.app"                    # macOS
+./gen-license.sh "/usr/share/dbeaver"                           # Linux
+gen-license.bat "C:\Program Files\DBeaver"                      # Windows
+gen-license.bat "C:\Program Files\DBeaver\dbeaver.exe"         # Windows (可执行文件)
+
+# 指定许可类型和版本（覆盖自动读取）
+./gen-license.sh -t ee -v 24 "/usr/share/dbeaver"              # Linux
+gen-license.bat -t ee -v 24 "C:\Program Files\DBeaver"         # Windows
 ```
+
+**注意事项：**
+- ⚠️ 使用此脚本前，需要先通过 `onekey.py` 或手动方式部署 agent
+- ⚠️ 脚本会在 DBeaver 的 plugins 目录中执行，直接使用已部署的 dbeaver-agent.jar
+- ℹ️ 脚本会自动从 `.eclipseproduct` 文件读取产品类型和版本号
 
 > **注意**：关于 CloudBeaver 支持，请查看 #10
 
