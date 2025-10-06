@@ -1,0 +1,57 @@
+# Dependabot 配置文件
+# 用于自动更新 Maven 依赖
+
+version: 2
+updates:
+  # Maven 依赖更新配置
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    
+    # 分组更新策略
+    groups:
+      # ByteBuddy 相关依赖一起更新
+      bytebuddy:
+        patterns:
+          - "net.bytebuddy:*"
+      
+      # JUnit 测试依赖一起更新
+      junit:
+        patterns:
+          - "junit:*"
+          - "org.junit.jupiter:*"
+      
+      # 其他公共依赖
+      common-dependencies:
+        patterns:
+          - "info.picocli:*"
+    
+    # 忽略特定依赖的更新（如果需要）
+    ignore:
+      # 系统依赖（libs 目录中的 jar）不由 Dependabot 管理
+      - dependency-name: "com.dbeaver.lm:api"
+      - dependency-name: "org.jkiss:utils"
+    
+    # 提交消息前缀
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    
+    # 标签配置
+    labels:
+      - "dependencies"
+      - "java"
+      - "maven"
+    
+    # 允许的更新类型
+    # - "security": 安全更新
+    # - "all": 所有更新（包括主版本）
+    # 默认行为：patch 和 minor 更新自动创建 PR
+    # allow:
+    #   - dependency-type: "all"
